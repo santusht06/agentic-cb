@@ -23,7 +23,7 @@ export function registerFeedCommands(linkedinCmd) {
             return;
           }
           posts.forEach((p, idx) => {
-            console.log(`  ${pc.bold(pc.green(`[#${idx + 1}]`))} ${pc.bold(pc.white(p.author))} ${pc.dim(`• ${p.title}`)}`);
+            console.log(`  ${pc.bold(pc.green(`[#${idx + 1}]`))} ${pc.bold(pc.white(p.author))} ${p.headline ? pc.dim(`• ${p.headline}`) : ""}`);
             console.log(`      ${p.text}`);
             console.log(`      ${pc.dim(`👍 ${p.likes} likes • 💬 ${p.comments} comments`)}`);
             console.log('');

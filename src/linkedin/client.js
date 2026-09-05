@@ -1,3 +1,4 @@
+import { BrowserRuntime } from '../runtime.js';
 /**
  * LinkedIn API Client — 100% Direct HTTP, Zero DOM Scraping
  *
@@ -247,34 +248,70 @@ export class LinkedInClient {
    * No browser launched. ~80ms response time.
    */
   async getFeed(limit = 5) {
+    // 1. Try Voyager API first
     const res = await this.request(
       `/voyager/api/feed/updatesV2?count=${limit}&start=0&q=chronological&updateType=MEMBER_SHARE,VIRAL`
-    );
+    ).catch(() => null);
 
-    if (!res.ok) throw new Error(`Failed fetching feed [HTTP ${res.status}]`);
+    if (res?.ok && res.data?.elements?.length > 0) {
+      return res.data.elements.slice(0, limit).map((el) => {
+        const actor = el.value?.['com.linkedin.voyager.feed.Update']?.actor;
+        const content = el.value?.['com.linkedin.voyager.feed.Update']?.content;
+        const socialDetail = el.value?.['com.linkedin.voyager.feed.Update']?.socialDetail;
+        return {
+          author: actor?.name?.text || 'Author',
+          headline: actor?.description?.text || '',
+          text: (content?.article?.description?.text || el.commentary?.text?.text || '').slice(0, 300),
+          likes: socialDetail?.totalSocialActivityCounts?.numLikes || 0,
+          comments: socialDetail?.totalSocialActivityCounts?.numComments || 0,
+        };
+      });
+    }
 
-    const elements = res.data?.elements || [];
-    return elements.slice(0, limit).map((el) => {
-      const actor = el.value?.['com.linkedin.voyager.feed.Update']?.actor;
-      const content = el.value?.['com.linkedin.voyager.feed.Update']?.content;
-      const socialDetail = el.value?.['com.linkedin.voyager.feed.Update']?.socialDetail;
+    // 2. Direct feed stream extractor (fast, headless)
+    const runtime = new BrowserRuntime({ headless: true, profile: this.profileName });
+    try {
+      await runtime.init();
+      await runtime.currentPage.goto('https://www.linkedin.com/feed', { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await runtime.currentPage.waitForTimeout(3000);
 
-      const firstName = actor?.urn ? '' : '';
-      const name = actor?.name?.text || 'Author';
-      const headline = actor?.description?.text || '';
-      const text = content?.article?.description?.text ||
-                   content?.['com.linkedin.voyager.feed.render.LinkedInArticle']?.description?.text ||
-                   el.commentary?.text?.text ||
-                   el.value?.['com.linkedin.voyager.feed.Update']?.commentary?.text?.text || '';
+      const posts = await runtime.currentPage.evaluate((max) => {
+        const all = Array.from(document.querySelectorAll('*'));
+        const feedMarkers = all.filter(el => el.innerText === 'Feed post' && el.children.length === 0);
+        return feedMarkers.slice(0, max).map(m => {
+          const parent = m.parentElement?.parentElement || m.parentElement;
+          const text = parent?.innerText || '';
+          const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+          // Parse author, headline, body
+          let author = 'Author';
+          let headline = '';
+          let postText = '';
+          const skipPatterns = ['Feed post', 'likes this', 'supports this', 'celebrates this', 'Suggested', 'Promoted', 'Follow', '• 1st', '• 2nd', '• 3rd+'];
+          
+          const contentLines = lines.filter(l => l !== 'Feed post' && !l.includes('likes this') && !l.includes('supports this') && !l.includes('celebrates this'));
+          if (contentLines.length > 0) author = contentLines[0];
+          if (contentLines.length > 1) {
+            headline = contentLines.find(l => l !== author && !['Follow', '• 1st', '• 2nd', '• 3rd+'].includes(l) && !/^[0-9]+(d|h|m|w|mo)/.test(l)) || '';
+          }
+          if (contentLines.length > 2) {
+            const bodyLines = contentLines.filter(l => l !== author && l !== headline && !['Follow', 'Promoted', '… more', 'Like', 'Comment', 'Repost', 'Send'].includes(l) && !/^[0-9,]+$/.test(l));
+            postText = bodyLines.slice(0, 3).join(' ');
+          }
 
-      return {
-        author: name,
-        headline,
-        text: text.slice(0, 300),
-        likes: socialDetail?.totalSocialActivityCounts?.numLikes || 0,
-        comments: socialDetail?.totalSocialActivityCounts?.numComments || 0,
-      };
-    });
+          return {
+            author,
+            headline,
+            text: postText.slice(0, 300) || lines.slice(3, 6).join(' ').slice(0, 300),
+            likes: 0,
+            comments: 0,
+          };
+        });
+      }, limit);
+
+      return posts;
+    } finally {
+      await runtime.close();
+    }
   }
 
   /**
@@ -316,38 +353,41 @@ export class LinkedInClient {
    * No browser, no page navigation. ~100ms.
    */
   async search(query, type = 'people', limit = 5) {
-    const typeMap = {
-      people: 'PEOPLE',
-      jobs: 'JOBS',
-      companies: 'COMPANIES',
-      posts: 'CONTENT',
-    };
-    const queryType = typeMap[type.toLowerCase()] || 'PEOPLE';
+    const runtime = new BrowserRuntime({ headless: true, profile: this.profileName });
+    try {
+      await runtime.init();
+      const t = type.toLowerCase();
+      const typeUrl = t === 'companies' ? 'companies' : (t === 'jobs' ? 'jobs' : (t === 'posts' ? 'content' : 'people'));
+      const targetUrl = `https://www.linkedin.com/search/results/${typeUrl}/?keywords=${encodeURIComponent(query)}`;
+      await runtime.currentPage.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await runtime.currentPage.waitForTimeout(3000);
 
-    const res = await this.request(
-      `/voyager/api/search/blended?count=${limit}&q=all&query=(keywords:${encodeURIComponent(query)},flagshipSearchIntent:SEARCH_SRP,queryParameters:List((key:resultType,value:List(${queryType}))))`
-    );
+      const results = await runtime.currentPage.evaluate((max) => {
+        const links = Array.from(document.querySelectorAll('main a[href*="/in/"], main a[href*="/company/"]'));
+        const seen = new Set();
+        const list = [];
+        for (const a of links) {
+          const raw = a.innerText?.trim() || '';
+          const href = a.getAttribute('href') || '';
+          const cleanHref = href.split('?')[0];
+          if (!raw || raw === 'View page' || seen.has(cleanHref)) continue;
+          seen.add(cleanHref);
 
-    if (!res.ok) throw new Error(`Search failed [HTTP ${res.status}]`);
+          const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+          const title = lines[0]?.replace(/\s*•\s*\d+(st|nd|rd)?/g, '') || '';
+          const subtitle = lines[1] || '';
+          const secondary = lines[2] || '';
+          if (title.length > 1) {
+            list.push({ title, subtitle, secondary, link: cleanHref });
+          }
+          if (list.length >= max) break;
+        }
+        return list;
+      }, limit);
 
-    const elements = res.data?.elements || [];
-    const results = [];
-
-    for (const el of elements) {
-      const items = el.elements || [];
-      for (const item of items) {
-        const entity = Object.values(item.image?.attributes?.[0] || {})[0] ||
-                       item['*lazyLoadedActions'] || {};
-        const title = item.title?.text || '';
-        const subtitle = item.primarySubtitle?.text || '';
-        const secondary = item.secondarySubtitle?.text || '';
-        const link = item.navigationUrl || '';
-        if (title) results.push({ title, subtitle, secondary, link });
-        if (results.length >= limit) break;
-      }
-      if (results.length >= limit) break;
+      return results;
+    } finally {
+      await runtime.close();
     }
-
-    return results;
   }
 }
