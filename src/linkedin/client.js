@@ -155,7 +155,38 @@ export class LinkedInClient {
   // ─── 4. MESSAGING (Direct API — no browser) ───────────────
 
   async getConversations(limit = 10) {
-    const res = await this.request('/voyager/api/messaging/conversations?keyVersion=LEGACY_INBOX');
+    // 1. Modern GraphQL query (fast, direct HTTP)
+    try {
+      const me = await this.getMe();
+      const mailboxUrn = me.data?.miniProfile?.dashEntityUrn || me.miniProfile?.dashEntityUrn;
+      if (mailboxUrn) {
+        const url = `/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerConversations.0d5e6781bbee71c3e51c8843c6519f48&variables=(mailboxUrn:${encodeURIComponent(mailboxUrn)})`;
+        const res = await this.request(url, { headers: { accept: 'application/graphql, application/json' } });
+        const elements = res.data?.data?.messengerConversationsBySyncToken?.elements;
+        if (elements && elements.length > 0) {
+          return elements.slice(0, limit).map((conv) => {
+            const others = (conv.conversationParticipants || [])
+              .map((p) => p.participantType?.member || p.hostIdentity?.member)
+              .filter((m) => m && m.distance !== 'SELF')
+              .map((m) => `${m.firstName?.text || ''} ${m.lastName?.text || ''}`.trim())
+              .filter(Boolean);
+            const lastMsg = conv.messages?.elements?.[0];
+            const snippet = lastMsg?.body?.text || lastMsg?.renderContentFallbackText || (lastMsg?.renderContent?.[0]?.hostUrnData ? '[Shared Post/Attachment]' : '');
+            const time = conv.lastActivityAt ? new Date(conv.lastActivityAt).toLocaleString() : '';
+            return {
+              name: others.join(', ') || conv.title || 'Conversation',
+              snippet,
+              time,
+              unread: conv.unreadCount > 0,
+              entityUrn: conv.entityUrn,
+            };
+          });
+        }
+      }
+    } catch {}
+
+    // 2. Legacy fallback
+    const res = await this.request('/voyager/api/messaging/conversations');
     if (res.ok && res.data?.elements) {
       return res.data.elements.slice(0, limit).map((c) => {
         const participants = (c.participants || [])
@@ -168,6 +199,7 @@ export class LinkedInClient {
         return { name: participants.join(', ') || 'Conversation', snippet, unread: c.unreadCount > 0, entityUrn: c.entityUrn };
       });
     }
+
     throw new Error('Could not fetch conversations. Ensure LinkedIn session is valid: cb --profile linkedin login https://www.linkedin.com/login');
   }
 

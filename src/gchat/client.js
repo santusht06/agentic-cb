@@ -120,7 +120,8 @@ export class GoogleChatClient {
    */
   async _apiCall(endpoint, { method = 'GET', body = null, headers = {} } = {}) {
     const ctx = await this._getContext();
-    const session = await getSession(this.profileName).catch(() => null);
+    const cookies = await ctx.cookies();
+    const sapisidCookie = cookies.find((c) => c.name === 'SAPISID' || c.name === '__Secure-3PAPISID');
 
     const reqHeaders = {
       'Accept': 'application/json, */*',
@@ -130,8 +131,8 @@ export class GoogleChatClient {
     };
 
     // Add SAPISID auth header if we have the cookie
-    if (session?.sapisid) {
-      reqHeaders['Authorization'] = computeSAPIHASH(session.sapisid, GCHAT_API);
+    if (sapisidCookie) {
+      reqHeaders['Authorization'] = computeSAPIHASH(sapisidCookie.value, GCHAT_API);
       reqHeaders['X-Origin'] = GCHAT_API;
     }
 
@@ -237,46 +238,55 @@ export class GoogleChatClient {
     const ctx = await this._getContext();
     const page = ctx.pages?.()[0] || await ctx.newPage();
     await page.goto(GCHAT_HOME, { waitUntil: 'domcontentloaded', timeout: 25000 });
-    await page.waitForSelector('.ajDw2c, [role="treeitem"]', { timeout: 8000 });
+    await page.waitForSelector('.ajDw2c, [role="treeitem"], [role="listitem"]', { timeout: 8000 }).catch(() => {});
 
-    return page.evaluate((max) => {
+    const itemsData = await page.evaluate((max) => {
       const items = Array.from(document.querySelectorAll('.ajDw2c, [data-group-id], [role="treeitem"], [role="listitem"]'));
       const list = [];
       const seen = new Set();
       for (const el of items) {
         const raw = el.innerText?.trim();
-        if (!raw || raw.length < 3 || !raw.includes('\n')) continue;
+        if (!raw || raw.length < 3) continue;
         const lines = raw.split('\n').map(l => l.trim()).filter(l => l && !['Away','Active','Options','Open in a pop-up','Press tab for more options.'].includes(l));
         const name = lines[0] || '';
         if (!name || seen.has(name) || ['Direct messages','Spaces','Apps'].includes(name)) continue;
         seen.add(name);
         const time = lines.find(l => l === 'Yesterday' || /^[A-Z][a-z]+ \d+$/.test(l) || l.includes(':')) || '';
         const snippet = lines.find(l => l !== name && l !== time) || '';
-        list.push({ name, time, snippet: snippet.slice(0, 120), isUnread: raw.includes('unread') });
+        const groupId = el.getAttribute('data-group-id') || (el.id?.includes('/') ? el.id.split('/')[1] : null);
+        list.push({ name, time, snippet: snippet.slice(0, 120), isUnread: raw.includes('unread'), groupId });
         if (list.length >= max) break;
       }
       return list;
     }, limit);
+
+    itemsData.forEach((c) => {
+      if (c.groupId) {
+        const chatUrl = `https://chat.google.com/app/chat/${c.groupId.replace(/^dm\//, '')}`;
+        this._cacheSpace(c.name.toLowerCase(), chatUrl);
+      }
+    });
+
+    return itemsData.map(({ groupId, ...rest }) => rest);
   }
 
   // ─── Read Messages ─────────────────────────────────────────
   /**
-   * Reads messages via Google Chat REST API.
-   * No page navigation when space ID is cached.
+   * Reads messages via Google Chat REST API or cached direct room navigation.
    */
   async readMessages(targetName, limit = 10) {
     const cache = this._getSpaceCache();
     let spaceId = cache[targetName.toLowerCase()];
 
-    // If not in cache, we need to find it
     if (!spaceId) {
-      await this.getConversations(25); // populates cache
+      // Populate cache from conversation list
+      await this.getConversations(25).catch(() => []);
       spaceId = this._getSpaceCache()[targetName.toLowerCase()];
     }
 
-    if (spaceId) {
-      const res = await this._apiCall(`/chat/v1/${spaceId}/messages?pageSize=${limit}&orderBy=createTime+desc`);
-      if (res.ok && res.data?.messages) {
+    if (spaceId && !spaceId.includes('chat.google.com')) {
+      const res = await this._apiCall(`/chat/v1/${spaceId}/messages?pageSize=${limit}&orderBy=createTime+desc`).catch(() => null);
+      if (res?.ok && res.data?.messages) {
         const msgs = res.data.messages.reverse();
         return {
           target: targetName,
@@ -290,7 +300,6 @@ export class GoogleChatClient {
       }
     }
 
-    // Fallback: DOM-based read
     return this._readMessagesDOM(targetName, spaceId, limit);
   }
 
@@ -298,31 +307,66 @@ export class GoogleChatClient {
     const ctx = await this._getContext();
     const page = ctx.pages?.()[0] || await ctx.newPage();
 
-    const targetUrl = spaceId
-      ? `${GCHAT_API}/room/${spaceId.replace('spaces/', '')}`
-      : GCHAT_HOME;
+    let targetUrl = spaceId && spaceId.startsWith('http')
+      ? spaceId
+      : (spaceId ? `${GCHAT_API}/room/${spaceId.replace('spaces/', '')}` : GCHAT_HOME);
 
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-    if (!spaceId) {
-      // Click into the conversation
-      await page.evaluate((name) => {
-        const all = Array.from(document.querySelectorAll('span, div'));
-        const match = all.find(el => el.innerText?.trim().toLowerCase() === name.toLowerCase() && el.offsetWidth > 0);
-        if (match) (match.closest('[role="treeitem"]') || match).click();
+    if (!spaceId || targetUrl === GCHAT_HOME) {
+      await page.waitForSelector('.ajDw2c, [role="treeitem"], [role="listitem"]', { timeout: 8000 }).catch(() => {});
+      const clicked = await page.evaluate((name) => {
+        const all = Array.from(document.querySelectorAll('span, div, [role="treeitem"], [role="listitem"]'));
+        const match = all.find(el => el.innerText?.trim().toLowerCase().includes(name.toLowerCase()) && el.offsetWidth > 0);
+        if (match) {
+          let p = match;
+          while (p && !p.getAttribute('role') && !p.className?.includes('ajDw2c') && p.parentElement) {
+            p = p.parentElement;
+          }
+          const target = p || match;
+          target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+          target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+          target.click();
+          return true;
+        }
+        return false;
       }, targetName);
 
-      // Wait for messages to appear (event-driven, not timeout)
-      await page.waitForSelector('[data-message-id], .nF6spd', { timeout: 8000 }).catch(() => {});
+      if (clicked) {
+        await page.waitForTimeout(2000);
+        const currUrl = page.url();
+        if (currUrl.includes('/chat/')) {
+          this._cacheSpace(targetName.toLowerCase(), currUrl);
+        }
+      }
     }
 
+    await page.waitForSelector('div[role="main"]', { timeout: 8000 }).catch(() => {});
+
     const messages = await page.evaluate((max) => {
-      const nodes = Array.from(document.querySelectorAll('[data-message-id], .nF6spd'));
-      return nodes.slice(-max).map(n => {
-        const author = n.querySelector('[data-sender-name], span.FvYvyf')?.innerText?.trim() || 'Sender';
-        const text = n.innerText?.trim() || '';
-        return { author, text: text.slice(0, 500) };
-      }).filter(m => m.text.length > 1);
+      const main = document.querySelector('div[role="main"]');
+      if (!main) return [];
+
+      const raw = main.innerText || '';
+      const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+      const ignore = ['Google Workspace tools', 'History is on', 'Schedule send', 'send', 'Send message', 'Home', 'Unread', 'Search', 'Thread'];
+      const filtered = lines.filter(l => !ignore.includes(l) && l.length > 1);
+
+      const list = [];
+      let currentAuthor = 'Sender';
+      for (let i = 0; i < filtered.length; i++) {
+        const line = filtered[i];
+        if (line === 'You' || line.includes('Harshita') || line.includes('Kotai') || line.includes('Today') || line.includes('Yesterday')) {
+          if (line === 'You' || line.includes('Harshita') || line.includes('Kotai')) {
+            currentAuthor = line;
+          }
+          continue;
+        }
+        if (/^\d{1,2}:\d{2}$/.test(line) || /^\d+ min$/.test(line) || /^[A-Z][a-z]{2} \d{1,2}:\d{2}$/.test(line)) continue;
+        list.push({ author: currentAuthor, text: line });
+      }
+
+      return list.slice(-max);
     }, limit);
 
     return { target: targetName, count: messages.length, messages };
@@ -362,10 +406,12 @@ export class GoogleChatClient {
     const ctx = await this._getContext();
     const page = ctx.pages?.()[0] || await ctx.newPage();
 
-    if (spaceId) {
-      await page.goto(`${GCHAT_API}/room/${spaceId.replace('spaces/', '')}`, {
-        waitUntil: 'domcontentloaded', timeout: 15000
-      });
+    const targetUrl = spaceId && spaceId.startsWith('http')
+      ? spaceId
+      : (spaceId ? `${GCHAT_API}/room/${spaceId.replace('spaces/', '')}` : null);
+
+    if (targetUrl) {
+      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     } else {
       await page.goto(GCHAT_HOME, { waitUntil: 'domcontentloaded', timeout: 20000 });
       // Click contact
@@ -409,8 +455,9 @@ export class GoogleChatClient {
 
     // Cache this space for future calls
     const currentUrl = page.url();
-    const roomMatch = currentUrl.match(/\/room\/([^/?]+)/);
-    if (roomMatch) this._cacheSpace(targetName.toLowerCase(), `spaces/${roomMatch[1]}`);
+    if (currentUrl.includes('/chat/') || currentUrl.includes('/room/')) {
+      this._cacheSpace(targetName.toLowerCase(), currentUrl);
+    }
 
     return { ok: true, recipient: targetName, message };
   }

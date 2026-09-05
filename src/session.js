@@ -16,7 +16,7 @@ import os from 'os';
 import crypto from 'crypto';
 import { BrowserRuntime } from './runtime.js';
 
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (auto-refreshed on 401/403)
 
 const BASE_DIR = path.join(os.homedir(), '.v8_cli');
 
@@ -35,6 +35,20 @@ function loadFromDisk(profileName) {
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!data.cookieHeader) return null;
     if (Date.now() - (data.savedAt || 0) > SESSION_TTL_MS) return null; // expired
+
+    // Ensure LinkedIn always has matching JSESSIONID cookie and csrfToken
+    const isLinkedIn = profileName.toLowerCase().includes('linkedin') ||
+                       (data.cookies && data.cookies.some((c) => c.name === 'li_at'));
+    if (isLinkedIn) {
+      if (!data.csrfToken) {
+        const rand = crypto.randomBytes(8).toString('hex');
+        data.csrfToken = `ajax:${rand}`;
+      }
+      if (!data.cookieHeader.includes('JSESSIONID')) {
+        data.cookieHeader = `${data.cookieHeader}; JSESSIONID="${data.csrfToken}"`;
+      }
+    }
+
     return data;
   } catch {
     return null;
@@ -79,7 +93,18 @@ async function extractSession(profileName) {
     const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
 
     // LinkedIn CSRF token
-    const jsession = cookies.find((c) => c.name === 'JSESSIONID')?.value?.replace(/^"|"$/g, '');
+    let jsession = cookies.find((c) => c.name === 'JSESSIONID')?.value?.replace(/^"|"$/g, '');
+    const isLinkedIn = profileName.toLowerCase().includes('linkedin') ||
+                       cookies.some((c) => c.name === 'li_at');
+    if (isLinkedIn) {
+      if (!jsession) {
+        const rand = crypto.randomBytes(8).toString('hex');
+        jsession = `ajax:${rand}`;
+      }
+      if (!cookieHeader.includes('JSESSIONID')) {
+        cookieHeader = `${cookieHeader}; JSESSIONID="${jsession}"`;
+      }
+    }
 
     // Google SAPISID for SAPISID hash computation
     const sapisid = cookies.find((c) => c.name === 'SAPISID')?.value ||
