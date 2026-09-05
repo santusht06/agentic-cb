@@ -6,6 +6,7 @@ import readline from 'readline';
 import fs from 'fs';
 import { exec } from 'child_process';
 import { BrowserRuntime } from './runtime.js';
+import { sessionFetch } from './session.js';
 import {
   renderNavigationResult,
   renderSemanticSnapshot,
@@ -205,7 +206,7 @@ export function createCLI() {
         await runtime.init();
         if (url) {
           await runtime.currentPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await runtime.currentPage.waitForTimeout(2000);
+          await runtime.currentPage.waitForSelector('body', { timeout: 5000 }).catch(() => {});
         }
         const snapshot = await runtime.getSemanticSnapshot();
         renderSemanticSnapshot(snapshot, opts.json);
@@ -214,6 +215,41 @@ export function createCLI() {
         else console.error(pc.red(`Error: ${err.message}`));
       } finally {
         await runtime.close();
+      }
+    });
+
+
+  // ==========================================
+  // 🌐 7. UNIVERSAL API FETCH (Agent-friendly)
+  // ==========================================
+  program
+    .command('fetch <method> <url> [body]')
+    .description('Make an authenticated HTTP request using stored session cookies (no browser launch)')
+    .option('-H, --header <header>', 'Extra header in Key:Value format', (v, prev) => prev.concat([v]), [])
+    .action(async (method, url, body, cmdOpts) => {
+      const opts = program.opts();
+      const profile = opts.profile || 'default';
+      const extraHeaders = {};
+      (cmdOpts.header || []).forEach((h) => {
+        const [k, ...v] = h.split(':');
+        if (k) extraHeaders[k.trim()] = v.join(':').trim();
+      });
+      let parsedBody = null;
+      if (body) {
+        try { parsedBody = JSON.parse(body); } catch { parsedBody = body; }
+      }
+      try {
+        const result = await sessionFetch(profile, url, {
+          method: method.toUpperCase(),
+          body: parsedBody,
+          headers: extraHeaders,
+        });
+        outputJSON(result);
+        if (!result.ok) process.exitCode = 1;
+      } catch (err) {
+        if (opts.json) outputJSON({ ok: false, error: err.message });
+        else console.error(pc.red('fetch error: ' + err.message));
+        process.exitCode = 1;
       }
     });
 
