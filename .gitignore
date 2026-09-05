@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Private & User Data (Confidential)
+resume/
+marksheets/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.ttf
+*.otf
+*.tex
+*.local
+
+# Environment & Credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+
+# Runtime Local State
+.v8_cli/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and IDE Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+.tempmediaStorage/
+.user_uploaded/

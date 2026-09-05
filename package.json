@@ -1,0 +1,33 @@
+{
+  "name": "agentic-cb",
+  "version": "1.0.0",
+  "description": "Agentic CLI Browser — Multi-platform control plane (Google Chat, WhatsApp, LinkedIn) & policy-aware browser runtime for AI agents and developers",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "cb": "./bin/cb.js"
+  },
+  "scripts": {
+    "start": "node ./bin/cb.js"
+  },
+  "keywords": [
+    "browser-automation",
+    "ai-agent",
+    "cdp",
+    "playwright",
+    "google-chat",
+    "whatsapp",
+    "linkedin",
+    "cli",
+    "automation",
+    "control-plane"
+  ],
+  "author": "Open Source Contributor",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^13.1.0",
+    "picocolors": "^1.1.1",
+    "playwright": "^1.50.1",
+    "robots-parser": "^3.0.1"
+  }
+}
