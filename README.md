@@ -121,6 +121,24 @@ cb gchat login
 # 2. List recent conversations (DMs & Spaces)
 cb gchat list --limit 10
 
+# 3. Read message history in a conversation
+cb gchat read "Team Workspace" --limit 10
+
+# 4. Send a message
+cb gchat send "Team Workspace" "Automated standup report: all systems operational."
+```
+
+---
+
+### 3. 📱 WhatsApp Web Control Plane (`cb wa`)
+
+```bash
+# 1. Pair WhatsApp Web via QR code (saved to profile)
+cb wa login
+
+# 2. List recent chats & unread badges
+cb wa chats --limit 15
+
 # 3. Filter only chats with unread messages
 cb wa unread
 
@@ -164,24 +182,6 @@ cb linkedin post "Excited to share our new agentic CLI tooling!"
 
 ---
 
-### 5. 🚀 Native Chrome CDP Bridge (`cb chrome:start` / `--attach`)
-
-Attach directly to your active native Google Chrome tabs without separate logins:
-
-```bash
-# Start native Chrome with remote debugging on port 9222
-cb chrome:start --port 9222
-
-# Control active tabs directly
-cb --attach send gchat "Jane Doe" "Hello from live Chrome!"
-cb --attach gchat list
-```
-
----
-
-### 6. 🌐 Policy-Aware Web Navigation & DOM Perception
-
-```bash
 # Navigate to URL with robots.txt safety checks
 cb open https://news.ycombinator.com
 
