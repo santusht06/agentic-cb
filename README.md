@@ -75,6 +75,24 @@ cb --help
 
 ---
 
+## ⚙️ Configuration
+
+The optional `.env` file lets you customize runtime behaviour. Copy the example and edit as needed:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CDP_PORT` | Port for native Chrome attachment (CDP). | `9222` |
+| `DEFAULT_PROFILE` | Name of the default profile for persistent sessions. | `default` |
+| `HEADLESS` | Run the browser headlessly (`true`/`false`). | `true` |
+
+These values are read at startup and override built‑in defaults.
+
+---
+
 ## 🕹️ Command Reference
 
 ### 1. ⚡ Universal Message Dispatcher
@@ -88,7 +106,7 @@ cb send wa "John Smith" "Meeting starts in 10 minutes."
 # Send to LinkedIn
 cb send linkedin "Alex Rivera" "Thanks for connecting!"
 
-# Machine-readable output for AI agents
+# Machine‑readable output for AI agents
 cb --json send gchat "Engineering Space" "Build #42 deployed successfully."
 ```
 
@@ -102,24 +120,6 @@ cb gchat login
 
 # 2. List recent conversations (DMs & Spaces)
 cb gchat list --limit 10
-
-# 3. Read message history in a conversation
-cb gchat read "Team Workspace" --limit 10
-
-# 4. Send a message
-cb gchat send "Team Workspace" "Automated standup report: all systems operational."
-```
-
----
-
-### 3. 📱 WhatsApp Web Control Plane (`cb wa`)
-
-```bash
-# 1. Pair WhatsApp Web via QR code (saved to profile)
-cb wa login
-
-# 2. List recent chats & unread badges
-cb wa chats --limit 15
 
 # 3. Filter only chats with unread messages
 cb wa unread
