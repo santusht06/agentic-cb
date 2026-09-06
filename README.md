@@ -47,17 +47,17 @@
 - **⚡ Universal Send Engine**: Dispatch messages to any platform with a single command (`cb send gchat|wa|linkedin <recipient> <message>`).
 - **💬 Google Chat Suite**: Authenticate, list DMs and Spaces, read conversation threads, and send messages autonomously.
 - **📱 WhatsApp Web Suite**: One-time QR pairing, view recent chats, filter unread messages, inspect thread history, and dispatch messages.
-- **💼 LinkedIn Control Plane**: Server-verified member identity, profile analytics, viewers, connections, search, feed reading, and post publishing.
-- **🔌 Native Chrome CDP Bridge**: Seamlessly attach to existing running Chrome instances on port 9222 without logging in again.
-- **🤖 AI-Agent JSON API**: Pass `-j, --json` to any command to receive clean, deterministic structured JSON for agent workflows.
-- **🛡️ Policy & Guardrail Engine**: Built-in `robots.txt` checks and automated bot challenge detection (Cloudflare Turnstile, Arkose Labs, CAPTCHA).
+- **💼 LinkedIn Control Plane**: Server‑verified member identity, profile analytics, viewers, connections, search, feed reading, and post publishing.
+- **🔌 Native Chrome CDP Bridge**: Seamlessly attach to existing running Chrome instances on port 9222 without logging in again.
+- **🤖 AI‑Agent JSON API**: Pass `-j, --json` to any command to receive clean, deterministic structured JSON for agent workflows.
+- **🛡️ Policy & Guardrail Engine**: Built‑in `robots.txt` checks and automated bot challenge detection (Cloudflare Turnstile, Arkose Labs, CAPTCHA).
 
 ---
 
 ## 📦 Installation & Setup
 
 ### Prerequisites
-- Node.js >= 18.0.0
+- Node.js >= 18.0.0
 - Google Chrome or Chromium
 
 ### Clone and Install Globally
