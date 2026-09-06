@@ -182,13 +182,31 @@ cb linkedin post "Excited to share our new agentic CLI tooling!"
 
 ---
 
+### 5. 🚀 Native Chrome CDP Bridge (`cb chrome:start` / `--attach`)
+
+Attach directly to your active native Google Chrome tabs without separate logins:
+
+```bash
+# Start native Chrome with remote debugging on port 9222
+cb chrome:start --port 9222
+
+# Control active tabs directly
+cb --attach send gchat "Jane Doe" "Hello from live Chrome!"
+cb --attach gchat list
+```
+
+---
+
+### 6. 🌐 Policy‑Aware Web Navigation & DOM Perception
+
+```bash
 # Navigate to URL with robots.txt safety checks
 cb open https://news.ycombinator.com
 
-# Dump token-efficient semantic accessibility tree for agents
+# Dump token‑efficient semantic accessibility tree for agents
 cb dump https://news.ycombinator.com
 
-# Multi-identity session profiles
+# Multi‑identity session profiles
 cb --profile personal open https://github.com
 cb --profile work open https://work-portal.example.com
 ```
@@ -218,7 +236,7 @@ cb --json send gchat "Jane Doe" "Status report attached."
 ## 🔒 Security & Privacy
 
 - **Local Storage Only**: All session cookies and profile caches are stored locally in your home directory (`~/.v8_cli/profiles/`).
-- **No Telemetry**: No personal credentials, tokens, or messages are ever transmitted to third-party tracking services.
+- **No Telemetry**: No personal credentials, tokens, or messages are ever transmitted to third‑party tracking services.
 - **Explicit Exclusions**: Personal marksheets, resumes, and test fixtures are strictly excluded via `.gitignore`.
 
 ---
