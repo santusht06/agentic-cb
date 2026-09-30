@@ -60,9 +60,11 @@
 
 ### Prerequisites
 - Node.js >= 18.0.0
+- Google Chrome or Chromium
+
 ### Clone and Install Globally
 ```bash
-git clone https://github.com/santusht06/agentic-cb.git
+git clone [https://github.com/santusht06/agentic-cb.git](https://github.com/santusht06/agentic-cb.git)
 cd agentic-cb
 npm install
 npm link
@@ -120,8 +122,6 @@ cb gchat login
 
 # 2. List recent conversations (DMs & Spaces)
 cb gchat list --limit 10
-
-# 3. Read message history in a conversation
 cb gchat read "Team Workspace" --limit 10
 
 # 4. Send a message
