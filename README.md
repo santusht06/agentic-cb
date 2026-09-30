@@ -1,5 +1,7 @@
 # 🌐 agentic-cb (CLI Browser)
 
+![AI Maintained](https://img.shields.io/badge/readme-AI%20maintained-blue)
+
 > **Centralized multi-platform control plane & policy-aware browser runtime engineered for AI agents and developers.**
 
 `cb` bridges the gap between AI agents, automation pipelines, and modern web applications. It provides a real V8 JavaScript runtime, persistent session state, direct in-session HTTP/2 APIs, automated `robots.txt` policy verification, interactive security challenge detection, and unified messaging control planes for **Google Chat**, **WhatsApp Web**, and **LinkedIn**.
@@ -58,8 +60,6 @@
 
 ### Prerequisites
 - Node.js >= 18.0.0
-- Google Chrome or Chromium
-
 ### Clone and Install Globally
 ```bash
 git clone https://github.com/santusht06/agentic-cb.git
