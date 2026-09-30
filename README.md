@@ -122,6 +122,8 @@ cb gchat login
 
 # 2. List recent conversations (DMs & Spaces)
 cb gchat list --limit 10
+
+# 3. Read message history in a conversation
 cb gchat read "Team Workspace" --limit 10
 
 # 4. Send a message
@@ -155,7 +157,7 @@ cb wa send "Support Group" "Acknowledged. Investigating issue now."
 
 ```bash
 # 1. Authenticate session
-cb --profile linkedin login https://www.linkedin.com/login
+cb --profile linkedin login [https://www.linkedin.com/login](https://www.linkedin.com/login)
 
 # 2. Inspect authenticated member identity (< 80ms server response)
 cb linkedin me
@@ -181,8 +183,6 @@ cb linkedin post "Excited to share our new agentic CLI tooling!"
 ```
 
 ---
-
-### 5. 🚀 Native Chrome CDP Bridge (`cb chrome:start` / `--attach`)
 
 Attach directly to your active native Google Chrome tabs without separate logins:
 
