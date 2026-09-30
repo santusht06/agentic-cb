@@ -184,6 +184,8 @@ cb linkedin post "Excited to share our new agentic CLI tooling!"
 
 ---
 
+### 5. 🚀 Native Chrome CDP Bridge (`cb chrome:start` / `--attach`)
+
 Attach directly to your active native Google Chrome tabs without separate logins:
 
 ```bash
@@ -201,14 +203,14 @@ cb --attach gchat list
 
 ```bash
 # Navigate to URL with robots.txt safety checks
-cb open https://news.ycombinator.com
+cb open [https://news.ycombinator.com](https://news.ycombinator.com)
 
 # Dump token‑efficient semantic accessibility tree for agents
-cb dump https://news.ycombinator.com
+cb dump [https://news.ycombinator.com](https://news.ycombinator.com)
 
 # Multi‑identity session profiles
-cb --profile personal open https://github.com
-cb --profile work open https://work-portal.example.com
+cb --profile personal open [https://github.com](https://github.com)
+cb --profile work open [https://work-portal.example.com](https://work-portal.example.com)
 ```
 
 ---
